@@ -58,13 +58,12 @@ def attachments(msg):
     return out
 
 def connect():
-    context=ssl.create_default_context()
-    client=imaplib.IMAP4_SSL(env("PLOW_IMAP_HOST",required=True),int(env("PLOW_IMAP_PORT","993")),ssl_context=context,timeout=30)
+    client=imaplib.IMAP4_SSL(env("PLOW_IMAP_HOST",required=True),int(env("PLOW_IMAP_PORT","993")),ssl_context=ssl.create_default_context(),timeout=30)
     client.login(env("PLOW_IMAP_USERNAME",required=True),env("PLOW_IMAP_PASSWORD",required=True))
     return client
 
-def select(client, mailbox):
-    status,_=client.select(mailbox,readonly=True)
+def select(client, mailbox, readonly=True):
+    status,_=client.select(mailbox,readonly=readonly)
     if status!="OK": raise ImapClientError(f"cannot select mailbox: {mailbox}")
 
 def uid_search(client, criteria):
@@ -72,7 +71,7 @@ def uid_search(client, criteria):
     if status!="OK": raise ImapClientError("SEARCH failed")
     return [int(x) for x in (data[0] or b"").split() if x.isdigit()]
 
-def cmd_mailboxes(client):
+def cmd_mailboxes(client,args):
     status,rows=client.list()
     if status!="OK": raise ImapClientError("LIST failed")
     for row in rows or []:
@@ -118,19 +117,38 @@ def cmd_search(client,args):
     select(client,args.mailbox); uids=uid_search(client,args.query)
     for uid in uids[-args.limit:]: print(json.dumps({"mailbox":args.mailbox,"uid":uid},separators=(",",":")))
 
+def cmd_move(client,args):
+    select(client,args.source,readonly=False)
+    uids=sorted({int(x) for value in args.uid for x in value.split(",") if x.isdigit()})
+    if not uids: raise ImapClientError("at least one numeric UID is required")
+    status,data=client.uid("MOVE",",".join(map(str,uids)),args.destination)
+    if status!="OK": raise ImapClientError(f"MOVE failed from {args.source} to {args.destination}: {data}")
+    print(json.dumps({"ok":True,"operation":"move","source":args.source,"destination":args.destination,"uids":uids},separators=(",",":")))
+
+def cmd_flag(client,args):
+    select(client,args.mailbox,readonly=False)
+    uids=sorted({int(x) for value in args.uid for x in value.split(",") if x.isdigit()})
+    if not uids: raise ImapClientError("at least one numeric UID is required")
+    flag=args.flag if args.flag.startswith("\\") else "\\"+args.flag
+    command="+FLAGS.SILENT" if args.add else "-FLAGS.SILENT"
+    status,data=client.uid("STORE",",".join(map(str,uids)),command,f"({flag})")
+    if status!="OK": raise ImapClientError(f"STORE failed: {data}")
+    print(json.dumps({"ok":True,"operation":"flag","mailbox":args.mailbox,"uids":uids,"flag":flag,"added":args.add},separators=(",",":")))
+
 def parser():
-    p=argparse.ArgumentParser(); sub=p.add_subparsers(dest="command",required=True)
+    p=argparse.ArgumentParser(description="Minimal IMAP bridge for Plow email triage"); sub=p.add_subparsers(dest="command",required=True)
     sub.add_parser("mailboxes")
     x=sub.add_parser("list"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--limit",type=int,default=100); x.add_argument("--unread",action="store_true"); x.add_argument("--since",type=int)
     x=sub.add_parser("fetch"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--uid",action="append",required=True); x.add_argument("--body-limit",type=int,default=0); x.add_argument("--text-limit",type=int,default=12000)
     x=sub.add_parser("search"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--query",nargs="+",required=True); x.add_argument("--limit",type=int,default=100)
+    x=sub.add_parser("move"); x.add_argument("--source",default="INBOX"); x.add_argument("--destination",required=True); x.add_argument("--uid",action="append",required=True)
+    x=sub.add_parser("flag"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--uid",action="append",required=True); x.add_argument("--flag",required=True); x.add_argument("--add",action=argparse.BooleanOptionalAction,default=True)
     return p
 
 def main():
     args=parser().parse_args(); client=None
     try:
-        client=connect(); {"mailboxes":cmd_mailboxes,"list":cmd_list,"fetch":cmd_fetch,"search":cmd_search}[args.command](client) if args.command=="mailboxes" else {"list":cmd_list,"fetch":cmd_fetch,"search":cmd_search}[args.command](client,args)
-        return 0
+        client=connect(); dispatch={"mailboxes":cmd_mailboxes,"list":cmd_list,"fetch":cmd_fetch,"search":cmd_search,"move":cmd_move,"flag":cmd_flag}; dispatch[args.command](client,args); return 0
     except Exception as exc:
         print(json.dumps({"ok":False,"error":f"{exc.__class__.__name__}: {exc}"},ensure_ascii=False),file=sys.stderr); return 2
     finally:
