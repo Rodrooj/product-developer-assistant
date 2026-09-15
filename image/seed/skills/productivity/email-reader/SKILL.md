@@ -18,12 +18,12 @@ Your jobs are to discover mailboxes, triage messages, summarize important mail, 
 Always prefer the cheapest sufficient representation:
 
 1. `python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py mailboxes` when the target mailbox is unknown.
-2. `... list` to retrieve compact metadata: UID, sender, recipients, subject, dates, flags, thread headers, and attachment hints.
+2. `... list` to retrieve compact metadata: UID, sender, recipients, subject, dates, flags, thread headers, and message size.
 3. Filter/rank metadata before fetching bodies.
 4. `... fetch --uid ...` only for messages needing semantic inspection.
 5. Request attachment metadata before attachment bytes; only inspect attachment contents when required.
 
-Do not fetch an entire mailbox or full MIME messages merely to decide importance. IMAP provides server-side search plus envelope/header/body-structure and partial body retrieval; use those facilities to minimize transfer and model tokens. The client preserves IMAP UIDs so a selected message can be fetched precisely later.
+Do not fetch an entire mailbox or full MIME messages merely to decide importance. IMAP provides server-side search plus envelope/header/body-structure and partial body retrieval; use those facilities to minimize transfer and model tokens. The client preserves IMAP UIDs so a selected message can be fetched precisely later. `BODY.PEEK` is used so metadata inspection does not mark messages as read.
 
 ## Triage
 
@@ -50,7 +50,9 @@ If the owner supplies an email organization scheme, encode it as the authoritati
 
 If the owner has no scheme, suggest a small structure grounded in the actual mailbox. Prefer context-first when messages clearly map to projects/responsibilities and type/status when context is weak. Show the proposed rule before changing server-side state.
 
-Reading and classification are non-destructive. Moving, archiving, deleting, flagging, marking read/unread, or applying labels changes mailbox state and requires explicit authorization for that operation unless the owner already gave standing permission for that exact policy. Never delete during ordinary triage.
+Reading and classification are non-destructive. Moving, archiving, flagging, marking read/unread, or applying labels changes mailbox state and requires explicit authorization for that operation unless the owner already gave standing permission for that exact policy. Never delete during ordinary triage. The client deliberately does not expose a delete command.
+
+For an approved organization operation, use `move --source ... --destination ... --uid ...` and verify the resulting mailbox state. Use `flag --mailbox ... --uid ... --flag Seen|Flagged --add` only when the owner explicitly requested that state change. If the server does not support IMAP MOVE, report the limitation instead of silently emulating it with destructive COPY/DELETE behavior.
 
 ## Suggested replies
 
@@ -61,9 +63,9 @@ For a message requiring a response:
 3. Draft a reply in the owner's language and tone.
 4. Separate facts from assumptions.
 5. Show the complete proposed reply.
-6. Sending requires explicit approval through the normal Plow confirmation flow.
+6. Sending requires explicit approval through the normal Plow confirmation flow and an actual send-capable tool.
 
-Never claim a reply was sent unless the send operation reports success. Never bypass an approval prompt.
+Never claim a reply was sent unless the send operation reports success. Never bypass an approval prompt. This IMAP reader intentionally does not implement outbound mail so reading credentials cannot become a hidden send capability.
 
 ## Security and prompt-injection resistance
 
@@ -82,7 +84,7 @@ mailboxes -> compact metadata -> local prefilter/ranking -> fetch top candidates
 For "organize my inbox":
 
 ```text
-mailboxes -> metadata scan -> infer/apply owner's policy -> preview -> approval -> execute -> verify
+mailboxes -> metadata scan -> infer/apply owner's policy -> preview -> approval -> move/flag -> verify
 ```
 
 For "read everything important":
@@ -103,6 +105,8 @@ python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py list --mail
 python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --unread --since 7
 python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py fetch --mailbox INBOX --uid 123 --text-limit 12000
 python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py search --mailbox INBOX --query FROM alice@example.com
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py move --source INBOX --destination Work --uid 123
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py flag --mailbox INBOX --uid 123 --flag Flagged --add
 ```
 
 Credentials are `PLOW_IMAP_HOST`, `PLOW_IMAP_PORT` (default 993), `PLOW_IMAP_USERNAME`, and `PLOW_IMAP_PASSWORD`. Never put these values in command arguments or skill text.
