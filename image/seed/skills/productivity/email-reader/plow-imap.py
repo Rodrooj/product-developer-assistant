@@ -14,19 +14,14 @@ class ImapClientError(RuntimeError): pass
 
 def env(name, default=None, required=False):
     value = os.environ.get(name, default)
-    if required and not value:
-        raise ImapClientError(f"missing required environment variable: {name}")
+    if required and not value: raise ImapClientError(f"missing required environment variable: {name}")
     return value
 
 def decode_header(value):
     if not value: return ""
-    out=[]
-    for text, charset in email.header.decode_header(value):
-        out.append(text.decode(charset or "utf-8", errors="replace") if isinstance(text, bytes) else text)
-    return "".join(out).strip()
+    return "".join(text.decode(charset or "utf-8", errors="replace") if isinstance(text,bytes) else text for text,charset in email.header.decode_header(value)).strip()
 
-def address_list(value):
-    return [{"name": decode_header(n), "email": a} for n,a in getaddresses([value or ""]) if a]
+def address_list(value): return [{"name":decode_header(n),"email":a} for n,a in getaddresses([value or ""]) if a]
 
 def parse_date(value):
     if not value: return None
@@ -35,17 +30,14 @@ def parse_date(value):
 
 def text_part(msg: Message, max_chars):
     candidates=[]
-    parts=msg.walk() if msg.is_multipart() else [msg]
-    for part in parts:
+    for part in (msg.walk() if msg.is_multipart() else [msg]):
         if part.is_multipart() or "attachment" in (part.get("Content-Disposition") or "").lower(): continue
         if part.get_content_type().lower() not in ("text/plain","text/html"): continue
         try: payload=part.get_content()
         except Exception:
-            raw=part.get_payload(decode=True) or b""
-            payload=raw.decode(part.get_content_charset() or "utf-8", errors="replace") if isinstance(raw,bytes) else raw
+            raw=part.get_payload(decode=True) or b""; payload=raw.decode(part.get_content_charset() or "utf-8",errors="replace") if isinstance(raw,bytes) else raw
         if payload: candidates.append(str(payload).strip())
-    text="\n\n".join(x for x in candidates if x)
-    return text[:max_chars], len(text)>max_chars
+    text="\n\n".join(x for x in candidates if x); return text[:max_chars],len(text)>max_chars
 
 def attachments(msg):
     out=[]
@@ -53,20 +45,18 @@ def attachments(msg):
         if part.is_multipart(): continue
         filename=part.get_filename(); disp=(part.get("Content-Disposition") or "").lower()
         if filename or "attachment" in disp:
-            raw=part.get_payload(decode=True) or b""
-            out.append({"filename":decode_header(filename) if filename else None,"content_type":part.get_content_type(),"size":len(raw)})
+            raw=part.get_payload(decode=True) or b""; out.append({"filename":decode_header(filename) if filename else None,"content_type":part.get_content_type(),"size":len(raw)})
     return out
 
 def connect():
     client=imaplib.IMAP4_SSL(env("PLOW_IMAP_HOST",required=True),int(env("PLOW_IMAP_PORT","993")),ssl_context=ssl.create_default_context(),timeout=30)
-    client.login(env("PLOW_IMAP_USERNAME",required=True),env("PLOW_IMAP_PASSWORD",required=True))
-    return client
+    client.login(env("PLOW_IMAP_USERNAME",required=True),env("PLOW_IMAP_PASSWORD",required=True)); return client
 
-def select(client, mailbox, readonly=True):
+def select(client,mailbox,readonly=True):
     status,_=client.select(mailbox,readonly=readonly)
     if status!="OK": raise ImapClientError(f"cannot select mailbox: {mailbox}")
 
-def uid_search(client, criteria):
+def uid_search(client,criteria):
     status,data=client.uid("SEARCH",None,*criteria)
     if status!="OK": raise ImapClientError("SEARCH failed")
     return [int(x) for x in (data[0] or b"").split() if x.isdigit()]
@@ -75,37 +65,33 @@ def cmd_mailboxes(client,args):
     status,rows=client.list()
     if status!="OK": raise ImapClientError("LIST failed")
     for row in rows or []:
-        text=row.decode("utf-8",errors="replace") if isinstance(row,bytes) else row
-        match=re.search(r'\)\s+"[^"]*"\s+(.+)$',text); value=match.group(1) if match else text
-        value=value.strip('"').replace('\\"','"').replace('\\\\','\\')
-        print(json.dumps({"mailbox":value},ensure_ascii=False,separators=(",",":")))
+        text=row.decode("utf-8",errors="replace") if isinstance(row,bytes) else row; match=re.search(r'\)\s+"[^"]*"\s+(.+)$',text); value=match.group(1) if match else text
+        print(json.dumps({"mailbox":value.strip('"').replace('\\"','"').replace('\\\\','\\')},ensure_ascii=False,separators=(",",":")))
 
-def compact_header(uid, raw, mailbox, flags=None):
-    msg=email.message_from_bytes(raw,policy=email.policy.default)
-    refs=decode_header(msg.get("References"))
-    return {"mailbox":mailbox,"uid":uid,"message_id":decode_header(msg.get("Message-ID")),"in_reply_to":decode_header(msg.get("In-Reply-To")),"references":refs.split() if refs else [],"date":parse_date(msg.get("Date")),"subject":decode_header(msg.get("Subject")),"from":address_list(msg.get("From")),"to":address_list(msg.get("To")),"cc":address_list(msg.get("Cc")),"reply_to":address_list(msg.get("Reply-To")),"seen":bool(flags and b"\\Seen" in flags),"has_attachment":False}
+def compact_header(uid,raw,mailbox,flags=None,size=None):
+    msg=email.message_from_bytes(raw,policy=email.policy.default); refs=decode_header(msg.get("References"))
+    return {"mailbox":mailbox,"uid":uid,"message_id":decode_header(msg.get("Message-ID")),"in_reply_to":decode_header(msg.get("In-Reply-To")),"references":refs.split() if refs else [],"date":parse_date(msg.get("Date")),"subject":decode_header(msg.get("Subject")),"from":address_list(msg.get("From")),"to":address_list(msg.get("To")),"cc":address_list(msg.get("Cc")),"reply_to":address_list(msg.get("Reply-To")),"seen":bool(flags and b"\\Seen" in flags),"size":size}
 
 def cmd_list(client,args):
     select(client,args.mailbox); criteria=["UNSEEN" if args.unread else "ALL"]
     if args.since is not None: criteria.append(f"SINCE {(datetime.now(timezone.utc)-timedelta(days=args.since)).strftime('%d-%b-%Y')}")
     uids=uid_search(client,criteria)[-args.limit:]
     if not uids:return
-    status,data=client.uid("FETCH",",".join(map(str,uids)),"(UID FLAGS BODY.PEEK[HEADER.FIELDS (DATE FROM TO CC REPLY-TO SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES)])")
+    status,data=client.uid("FETCH",",".join(map(str,uids)),"(UID FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (DATE FROM TO CC REPLY-TO SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES)])")
     if status!="OK": raise ImapClientError("FETCH headers failed")
     for item in data or []:
         if not isinstance(item,tuple): continue
         meta,header=item; match=re.search(rb"UID\s+(\d+)",meta)
+        size_match=re.search(rb"RFC822.SIZE\s+(\d+)",meta)
         if match:
-            row=compact_header(int(match.group(1)),header,args.mailbox,meta)
+            row=compact_header(int(match.group(1)),header,args.mailbox,meta,int(size_match.group(1)) if size_match else None)
             print(json.dumps(row,ensure_ascii=False,separators=(",",":")))
 
 def cmd_fetch(client,args):
-    select(client,args.mailbox)
-    uids=sorted({int(x) for value in args.uid for x in value.split(",") if x.isdigit()})
+    select(client,args.mailbox); uids=sorted({int(x) for value in args.uid for x in value.split(",") if x.isdigit()})
     if not uids: raise ImapClientError("at least one numeric UID is required")
     for uid in uids:
-        section=f"BODY.PEEK[]<0.{args.body_limit}>" if args.body_limit else "BODY.PEEK[]"
-        status,data=client.uid("FETCH",str(uid),f"(UID {section})")
+        section=f"BODY.PEEK[]<0.{args.body_limit}>" if args.body_limit else "BODY.PEEK[]"; status,data=client.uid("FETCH",str(uid),f"(UID {section})")
         if status!="OK": raise ImapClientError(f"FETCH failed for UID {uid}")
         payload=next((x[1] for x in data or [] if isinstance(x,tuple) and len(x)>1 and isinstance(x[1],bytes)),None)
         if payload is None: continue
@@ -117,27 +103,25 @@ def cmd_search(client,args):
     select(client,args.mailbox); uids=uid_search(client,args.query)
     for uid in uids[-args.limit:]: print(json.dumps({"mailbox":args.mailbox,"uid":uid},separators=(",",":")))
 
+def parse_uids(values): return sorted({int(x) for value in values for x in value.split(",") if x.isdigit()})
+
 def cmd_move(client,args):
-    select(client,args.source,readonly=False)
-    uids=sorted({int(x) for value in args.uid for x in value.split(",") if x.isdigit()})
+    select(client,args.source,readonly=False); uids=parse_uids(args.uid)
     if not uids: raise ImapClientError("at least one numeric UID is required")
     status,data=client.uid("MOVE",",".join(map(str,uids)),args.destination)
     if status!="OK": raise ImapClientError(f"MOVE failed from {args.source} to {args.destination}: {data}")
     print(json.dumps({"ok":True,"operation":"move","source":args.source,"destination":args.destination,"uids":uids},separators=(",",":")))
 
 def cmd_flag(client,args):
-    select(client,args.mailbox,readonly=False)
-    uids=sorted({int(x) for value in args.uid for x in value.split(",") if x.isdigit()})
+    select(client,args.mailbox,readonly=False); uids=parse_uids(args.uid)
     if not uids: raise ImapClientError("at least one numeric UID is required")
-    flag=args.flag if args.flag.startswith("\\") else "\\"+args.flag
-    command="+FLAGS.SILENT" if args.add else "-FLAGS.SILENT"
+    flag=args.flag if args.flag.startswith("\\") else "\\"+args.flag; command="+FLAGS.SILENT" if args.add else "-FLAGS.SILENT"
     status,data=client.uid("STORE",",".join(map(str,uids)),command,f"({flag})")
     if status!="OK": raise ImapClientError(f"STORE failed: {data}")
     print(json.dumps({"ok":True,"operation":"flag","mailbox":args.mailbox,"uids":uids,"flag":flag,"added":args.add},separators=(",",":")))
 
 def parser():
-    p=argparse.ArgumentParser(description="Minimal IMAP bridge for Plow email triage"); sub=p.add_subparsers(dest="command",required=True)
-    sub.add_parser("mailboxes")
+    p=argparse.ArgumentParser(description="Minimal IMAP bridge for Plow email triage"); sub=p.add_subparsers(dest="command",required=True); sub.add_parser("mailboxes")
     x=sub.add_parser("list"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--limit",type=int,default=100); x.add_argument("--unread",action="store_true"); x.add_argument("--since",type=int)
     x=sub.add_parser("fetch"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--uid",action="append",required=True); x.add_argument("--body-limit",type=int,default=0); x.add_argument("--text-limit",type=int,default=12000)
     x=sub.add_parser("search"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--query",nargs="+",required=True); x.add_argument("--limit",type=int,default=100)
@@ -148,7 +132,7 @@ def parser():
 def main():
     args=parser().parse_args(); client=None
     try:
-        client=connect(); dispatch={"mailboxes":cmd_mailboxes,"list":cmd_list,"fetch":cmd_fetch,"search":cmd_search,"move":cmd_move,"flag":cmd_flag}; dispatch[args.command](client,args); return 0
+        client=connect(); {"mailboxes":cmd_mailboxes,"list":cmd_list,"fetch":cmd_fetch,"search":cmd_search,"move":cmd_move,"flag":cmd_flag}[args.command](client,args); return 0
     except Exception as exc:
         print(json.dumps({"ok":False,"error":f"{exc.__class__.__name__}: {exc}"},ensure_ascii=False),file=sys.stderr); return 2
     finally:
