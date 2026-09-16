@@ -40,6 +40,8 @@ FROM base
 
 COPY LICENSE NOTICE /usr/share/licenses/product-developer-assistant/
 
+RUN apt-get update && apt-get install -y --no-install-recommends gh && rm -rf /var/lib/apt/lists/*
+
 # The agent's home, for everything in the image and not just for the gateway.
 #
 # The upstream image points both of these at /opt/data, and this image's seed
