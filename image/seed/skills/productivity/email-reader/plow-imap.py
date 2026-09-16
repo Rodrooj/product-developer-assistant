@@ -51,7 +51,8 @@ def attachments(msg):
 def resolve_credentials(account=None):
     if account:
         prefix = f"PLOW_IMAP_{account.upper()}_"
-        default_host = "imap.gmail.com" if account.lower() == "gmail" else ("imap.mail.me.com" if account.lower() == "icloud" else None)
+        default_hosts = {"gmail": "imap.gmail.com", "icloud": "imap.mail.me.com", "outlook": "outlook.office365.com", "hotmail": "outlook.office365.com"}
+        default_host = default_hosts.get(account.lower())
         host = env(f"{prefix}HOST", default=default_host, required=True)
         port = int(env(f"{prefix}PORT", "993"))
         user = env(f"{prefix}USERNAME", required=True)
@@ -64,6 +65,8 @@ def resolve_credentials(account=None):
         return resolve_credentials("gmail")
     if env("PLOW_IMAP_ICLOUD_USERNAME"):
         return resolve_credentials("icloud")
+    if env("PLOW_IMAP_OUTLOOK_USERNAME"):
+        return resolve_credentials("outlook")
     return env("PLOW_IMAP_HOST", required=True), 993, "", ""
 
 def connect(account=None):
@@ -146,6 +149,8 @@ def cmd_accounts(client, args):
         accounts.append({"account": "gmail", "host": env("PLOW_IMAP_GMAIL_HOST", "imap.gmail.com"), "username": env("PLOW_IMAP_GMAIL_USERNAME")})
     if env("PLOW_IMAP_ICLOUD_USERNAME"):
         accounts.append({"account": "icloud", "host": env("PLOW_IMAP_ICLOUD_HOST", "imap.mail.me.com"), "username": env("PLOW_IMAP_ICLOUD_USERNAME")})
+    if env("PLOW_IMAP_OUTLOOK_USERNAME"):
+        accounts.append({"account": "outlook", "host": env("PLOW_IMAP_OUTLOOK_HOST", "outlook.office365.com"), "username": env("PLOW_IMAP_OUTLOOK_USERNAME")})
     if env("PLOW_IMAP_USERNAME") and not accounts:
         accounts.append({"account": "default", "host": env("PLOW_IMAP_HOST", ""), "username": env("PLOW_IMAP_USERNAME")})
     for acc in accounts:
