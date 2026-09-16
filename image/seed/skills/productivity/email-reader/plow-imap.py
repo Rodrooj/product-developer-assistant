@@ -48,9 +48,29 @@ def attachments(msg):
             raw=part.get_payload(decode=True) or b""; out.append({"filename":decode_header(filename) if filename else None,"content_type":part.get_content_type(),"size":len(raw)})
     return out
 
-def connect():
-    client=imaplib.IMAP4_SSL(env("PLOW_IMAP_HOST",required=True),int(env("PLOW_IMAP_PORT","993")),ssl_context=ssl.create_default_context(),timeout=30)
-    client.login(env("PLOW_IMAP_USERNAME",required=True),env("PLOW_IMAP_PASSWORD",required=True)); return client
+def resolve_credentials(account=None):
+    if account:
+        prefix = f"PLOW_IMAP_{account.upper()}_"
+        default_host = "imap.gmail.com" if account.lower() == "gmail" else ("imap.mail.me.com" if account.lower() == "icloud" else None)
+        host = env(f"{prefix}HOST", default=default_host, required=True)
+        port = int(env(f"{prefix}PORT", "993"))
+        user = env(f"{prefix}USERNAME", required=True)
+        pwd = env(f"{prefix}PASSWORD", required=True)
+        return host, port, user, pwd
+    host = env("PLOW_IMAP_HOST")
+    if host:
+        return host, int(env("PLOW_IMAP_PORT", "993")), env("PLOW_IMAP_USERNAME", required=True), env("PLOW_IMAP_PASSWORD", required=True)
+    if env("PLOW_IMAP_GMAIL_USERNAME"):
+        return resolve_credentials("gmail")
+    if env("PLOW_IMAP_ICLOUD_USERNAME"):
+        return resolve_credentials("icloud")
+    return env("PLOW_IMAP_HOST", required=True), 993, "", ""
+
+def connect(account=None):
+    host, port, user, pwd = resolve_credentials(account)
+    client = imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context(), timeout=30)
+    client.login(user, pwd)
+    return client
 
 def select(client,mailbox,readonly=True):
     status,_=client.select(mailbox,readonly=readonly)
@@ -120,19 +140,35 @@ def cmd_flag(client,args):
     if status!="OK": raise ImapClientError(f"STORE failed: {data}")
     print(json.dumps({"ok":True,"operation":"flag","mailbox":args.mailbox,"uids":uids,"flag":flag,"added":args.add},separators=(",",":")))
 
+def cmd_accounts(client, args):
+    accounts = []
+    if env("PLOW_IMAP_GMAIL_USERNAME"):
+        accounts.append({"account": "gmail", "host": env("PLOW_IMAP_GMAIL_HOST", "imap.gmail.com"), "username": env("PLOW_IMAP_GMAIL_USERNAME")})
+    if env("PLOW_IMAP_ICLOUD_USERNAME"):
+        accounts.append({"account": "icloud", "host": env("PLOW_IMAP_ICLOUD_HOST", "imap.mail.me.com"), "username": env("PLOW_IMAP_ICLOUD_USERNAME")})
+    if env("PLOW_IMAP_USERNAME") and not accounts:
+        accounts.append({"account": "default", "host": env("PLOW_IMAP_HOST", ""), "username": env("PLOW_IMAP_USERNAME")})
+    for acc in accounts:
+        print(json.dumps(acc, ensure_ascii=False, separators=(",", ":")))
+
 def parser():
-    p=argparse.ArgumentParser(description="Minimal IMAP bridge for Plow email triage"); sub=p.add_subparsers(dest="command",required=True); sub.add_parser("mailboxes")
-    x=sub.add_parser("list"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--limit",type=int,default=100); x.add_argument("--unread",action="store_true"); x.add_argument("--since",type=int)
-    x=sub.add_parser("fetch"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--uid",action="append",required=True); x.add_argument("--body-limit",type=int,default=0); x.add_argument("--text-limit",type=int,default=12000)
-    x=sub.add_parser("search"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--query",nargs="+",required=True); x.add_argument("--limit",type=int,default=100)
-    x=sub.add_parser("move"); x.add_argument("--source",default="INBOX"); x.add_argument("--destination",required=True); x.add_argument("--uid",action="append",required=True)
-    x=sub.add_parser("flag"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--uid",action="append",required=True); x.add_argument("--flag",required=True); x.add_argument("--add",action=argparse.BooleanOptionalAction,default=True)
+    p=argparse.ArgumentParser(description="Minimal IMAP bridge for Plow email triage"); sub=p.add_subparsers(dest="command",required=True)
+    sub.add_parser("accounts")
+    x=sub.add_parser("mailboxes"); x.add_argument("--account", default=None)
+    x=sub.add_parser("list"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--limit",type=int,default=100); x.add_argument("--unread",action="store_true"); x.add_argument("--since",type=int); x.add_argument("--account", default=None)
+    x=sub.add_parser("fetch"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--uid",action="append",required=True); x.add_argument("--body-limit",type=int,default=0); x.add_argument("--text-limit",type=int,default=12000); x.add_argument("--account", default=None)
+    x=sub.add_parser("search"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--query",nargs="+",required=True); x.add_argument("--limit",type=int,default=100); x.add_argument("--account", default=None)
+    x=sub.add_parser("move"); x.add_argument("--source",default="INBOX"); x.add_argument("--destination",required=True); x.add_argument("--uid",action="append",required=True); x.add_argument("--account", default=None)
+    x=sub.add_parser("flag"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--uid",action="append",required=True); x.add_argument("--flag",required=True); x.add_argument("--add",action=argparse.BooleanOptionalAction,default=True); x.add_argument("--account", default=None)
     return p
 
 def main():
     args=parser().parse_args(); client=None
     try:
-        client=connect(); {"mailboxes":cmd_mailboxes,"list":cmd_list,"fetch":cmd_fetch,"search":cmd_search,"move":cmd_move,"flag":cmd_flag}[args.command](client,args); return 0
+        if args.command == "accounts":
+            cmd_accounts(None, args); return 0
+        account = getattr(args, "account", None)
+        client=connect(account); {"mailboxes":cmd_mailboxes,"list":cmd_list,"fetch":cmd_fetch,"search":cmd_search,"move":cmd_move,"flag":cmd_flag}[args.command](client,args); return 0
     except Exception as exc:
         print(json.dumps({"ok":False,"error":f"{exc.__class__.__name__}: {exc}"},ensure_ascii=False),file=sys.stderr); return 2
     finally:

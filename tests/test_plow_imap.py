@@ -33,6 +33,9 @@ class ImapBridgeTests(unittest.TestCase):
         self.assertEqual(parser.parse_args(["fetch", "--uid", "42"]).command, "fetch")
         self.assertEqual(parser.parse_args(["move", "--destination", "Work", "--uid", "42"]).command, "move")
         self.assertEqual(parser.parse_args(["flag", "--uid", "42", "--flag", "Flagged"]).command, "flag")
+        self.assertEqual(parser.parse_args(["accounts"]).command, "accounts")
+        self.assertEqual(parser.parse_args(["list", "--account", "gmail"]).account, "gmail")
+        self.assertEqual(parser.parse_args(["mailboxes", "--account", "icloud"]).account, "icloud")
 
 
 if __name__ == "__main__":

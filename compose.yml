@@ -2,6 +2,8 @@ name: product-developer-assistant
 
 services:
   agent:
+    env_file:
+      - .env
     # This repository is the base image, so this builds it rather than pulling
     # one: about a minute from cold on a laptop, nearly all of it the upstream
     # pull. That upstream is public and pulls anonymously, so a `403 Forbidden`

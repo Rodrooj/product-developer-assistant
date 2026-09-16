@@ -97,18 +97,20 @@ The objective is useful decisions per byte transferred and per model token, whil
 
 ## Client interface
 
-The bridge is stored beside this skill and emits compact JSON objects:
+The bridge is stored beside this skill and emits compact JSON objects. It supports multiple accounts (e.g. Gmail and iCloud) via `--account`:
 
 ```text
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py mailboxes
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --limit 100
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --unread --since 7
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py fetch --mailbox INBOX --uid 123 --text-limit 12000
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py search --mailbox INBOX --query FROM alice@example.com
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py move --source INBOX --destination Work --uid 123
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py flag --mailbox INBOX --uid 123 --flag Flagged --add
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py accounts
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py mailboxes --account gmail
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py mailboxes --account icloud
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --limit 100 --account gmail
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --unread --since 7 --account icloud
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py fetch --mailbox INBOX --uid 123 --text-limit 12000 --account gmail
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py search --mailbox INBOX --query FROM alice@example.com --account gmail
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py move --source INBOX --destination Work --uid 123 --account gmail
+python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py flag --mailbox INBOX --uid 123 --flag Flagged --add --account icloud
 ```
 
-Credentials are `PLOW_IMAP_HOST`, `PLOW_IMAP_PORT` (default 993), `PLOW_IMAP_USERNAME`, and `PLOW_IMAP_PASSWORD`. Never put these values in command arguments or skill text.
+Credentials can be general (`PLOW_IMAP_HOST`, `PLOW_IMAP_PORT`, `PLOW_IMAP_USERNAME`, `PLOW_IMAP_PASSWORD`) or per-account (`PLOW_IMAP_GMAIL_*`, `PLOW_IMAP_ICLOUD_*`). Never put these values in command arguments or skill text.
 
 If the bridge cannot complete an operation, report the concrete failure and use an available Plow/Latch capability only when actually appropriate. Never invent mailbox state.
