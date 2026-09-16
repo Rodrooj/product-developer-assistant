@@ -30,6 +30,18 @@ A policy can define:
 
 Preserve the user's terminology and hierarchy exactly when it is unambiguous. Do not silently normalize folder names, rename categories, or introduce extra hierarchy just because another scheme looks cleaner.
 
+## Execution environment
+
+**Critical:** File operations on the user's computer occur on the **user's macOS host machine via Plow Latch**, not inside the agent container.
+
+Use these tools from the Plow MCP server:
+- `plow_run_command` → run shell commands (`ls`, `mkdir -p`, `mv`, `find`) directly on the user's Mac host
+- `plow_read_file` → inspect file metadata or contents when necessary to classify an item
+- `plow_run_applescript` → interact with Finder if native macOS UI integration is preferred
+
+**Never use `terminal`** for user file organization. The `terminal` tool executes inside an isolated Linux container which has NO access to `/Users/rodrigo/...` or the Mac desktop.
+**Never use `execute_code`** to move or alter user files on the Mac.
+
 ## Two operating modes
 
 ### 1. User-defined mode
