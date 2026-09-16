@@ -516,6 +516,7 @@ def configure(identity: Identity, seed: dict) -> None:
         # The relay entry is the image's too, so it is written whole (#45):
         # a home seeded before it carried `url`/`headers` dispatched to stdio.
         ("mcp_servers", RELAY_SERVER): {**seed["mcp_servers"][RELAY_SERVER], "enabled": identity.mcp_url is not None},
+        **{("mcp_servers", k): v for k, v in seed.get("mcp_servers", {}).items() if k != RELAY_SERVER},
         ("model", "provider"): provider,
         # A cron job pins the provider TYPE it resolved at creation, and a
         # `providers:` entry resolves as the bare `custom`, which names no
