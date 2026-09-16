@@ -32,12 +32,24 @@ cleanup_caffeinate() {
 }
 trap 'cleanup_caffeinate; cleanup' EXIT INT TERM
 
+# Ensure launchd environment can locate hermes and docker
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:$PATH"
+
 HERMES_BIN="${HERMES_BIN:-$(command -v hermes || true)}"
-if [[ -z "$HERMES_BIN" ]]; then
-  print -u2 "automation-wake: hermes executable not found"
+if [[ -z "$HERMES_BIN" ]] && ! command -v docker >/dev/null 2>&1; then
+  print -u2 "automation-wake: neither hermes nor docker executable found"
   exit 127
 fi
 
 # A single tick is intentionally used: Hermes owns due-job, repeat and
 # in-flight semantics. This avoids replaying every missed interval after sleep.
-"$HERMES_BIN" cron tick >>"$LOG_DIR/automation-wake.log" 2>&1
+if [[ -n "$HERMES_BIN" ]]; then
+  "$HERMES_BIN" cron tick >>"$LOG_DIR/automation-wake.log" 2>&1 || true
+fi
+
+# Also tick scheduled jobs inside the agent Docker container if running
+if command -v docker >/dev/null 2>&1; then
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "product-developer-assistant-agent-1"; then
+    docker exec product-developer-assistant-agent-1 /command/s6-envdir /run/s6/container_environment sh -c "export HOME=/var/lib/hermes; su -s /bin/sh hermes -c 'hermes cron tick'" >>"$LOG_DIR/automation-wake.log" 2>&1 || true
+  fi
+fi
