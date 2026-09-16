@@ -25,6 +25,43 @@ Microsoft documents that Word for Mac supports AppleScript automation and identi
 
 If Word is unavailable, automation permission is denied, or the requested operation is not exposed by the available Word scripting interface, report the limitation and do not pretend the document was changed.
 
+## Execution environment
+
+**Critical:** Pages and Word run on the user's Mac. To run AppleScript, always use the **`plow_run_applescript`** tool (provided by the Plow MCP server). This tool executes AppleScript directly on the user's machine through the Latch app.
+
+**Never use `terminal`** to run AppleScript — the `terminal` tool runs inside a Linux container with no access to macOS apps. Never use `execute_code` for AppleScript.
+
+Correct tool choice:
+- `plow_run_applescript` → all AppleScript for Pages, Word, and other macOS apps
+- `plow_read_file` → read a raw file from the user's Mac (e.g., for `.docx` inspection)
+- `plow_run_command` → shell commands on the Mac (e.g., `ls`, `file`) when needed
+
+### Standard Pages read pattern
+
+```applescript
+tell application "Pages"
+  -- Open if not already open
+  set docPath to "/path/to/document.pages"
+  open POSIX file docPath
+  delay 1
+  set theDoc to front document
+  set docText to body text of theDoc
+  return docText
+end tell
+```
+
+### Standard Pages targeted replace pattern
+
+```applescript
+tell application "Pages"
+  set theDoc to front document
+  set body text of theDoc to "new content"
+  save theDoc
+end tell
+```
+
+For targeted paragraph edits, use `paragraphs` of body text and replace only the affected range to preserve formatting.
+
 ## Core workflow
 
 Use this loop for substantive revisions:
