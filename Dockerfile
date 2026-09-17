@@ -2,7 +2,7 @@
 # every downstream variant image built FROM it — inherits this exact upstream
 # filesystem, and a moved upstream tag would substitute code on boxes holding
 # customer credentials.
-FROM nousresearch/hermes-agent@sha256:66300578dbad1937e71288e26116219e7702da07fe5218afdf87423fa51fa0b8 AS base
+FROM public.ecr.aws/e1h7x4a2/plow-cloud-agents:base-51f83158a70a383f03a4d03dbd8b6ea102cf0361@sha256:253d7ed3409effa7fa59113d93b4b79bb731d8264cdaf4cd60294924d0110a2e AS base
 
 # The plow_chat plugin's canonical home is plow-pbc/hermes-plugin-plow; this
 # repository vendors no copy, it pins one commit. Moving the plugin is a
