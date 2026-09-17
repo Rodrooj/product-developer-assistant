@@ -150,25 +150,42 @@ def park(reason: str) -> typing.NoReturn:
         signal.pause()
 
 
+TOKEN_PLACEHOLDER = "proxied"
+
+
 class Credentials(BaseSettings):
-    """The two required lines and optional Agent Index id the host writes.
+    """Where Plow is, and the token to present if the host has one.
 
-    `extra="forbid"` refuses a provisioner that has drifted ahead of this
-    image, rather than half-obeying it.
-
-    The file is the ONLY source. A settings model reads the process
-    environment first by default, which would let `docker run -e
-    PLOW_AGENT_TOKEN=...` outrank the credential the image was actually given
-    -- and since the token decides what is sent to Plow, that is a rotation
-    silently not taking, or an agent presenting somebody else's credential.
-    So every other source is dropped below.
+    Environment variables take precedence if PLOW_API_BASE is set; otherwise,
+    reads from file.
     """
+
+    plow_api_base: str
+    plow_agent_token: str | None = None
+    agent_id: str | None = None
+
+    @property
+    def bearer(self) -> str:
+        return self.plow_agent_token or TOKEN_PLACEHOLDER
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (env_settings, dotenv_settings)
+
+
+class FileCredentials(Credentials):
+    """The file a host writes when credentials are passed via file."""
 
     model_config = SettingsConfigDict(extra="forbid")
 
-    plow_api_base: str
     plow_agent_token: str
-    agent_id: str | None = None
 
     @classmethod
     def settings_customise_sources(
@@ -234,7 +251,7 @@ class Identity(BaseModel):
     mcp_url: str | None
 
 
-def home_chat(identity: Identity) -> Chat:
+def home_chat(identity: Identity) -> Chat | None:
     """The one chat that is this agent talking to the person it belongs to.
 
     Plow does not name it, so the image picks it, by the same rule Plow uses:
@@ -243,15 +260,11 @@ def home_chat(identity: Identity) -> Chat:
     somebody else's. The line check is load-bearing: a mailbox carrying this
     agent's persona is another line whose threads the credential also opens,
     and an owner alone with the mailbox reads as owner-plus-self too. Zero
-    matches or several is not a thing to guess at: the home channel is where
-    the agent answers, and the wrong one is an agent talking to the wrong people.
+    matches means the owner has not made contact yet. Several still refuse.
     """
     def is_home(chat: Chat) -> bool:
         members = [p for p in chat.participants if isinstance(p, MemberParticipant)]
         agents = [p for p in chat.participants if isinstance(p, AgentParticipant)]
-        # Exactly one agent, not merely exactly one `self`: another Plow line
-        # in the thread is a second assistant, which makes this a group rather
-        # than the owner's one-to-one chat with this agent.
         return (
             chat.status == "active"
             and len(agents) == 1
@@ -262,7 +275,9 @@ def home_chat(identity: Identity) -> Chat:
         )
 
     matches = [chat for chat in identity.chats if is_home(chat)]
-    if len(matches) != 1:
+    if not matches:
+        return None
+    if len(matches) > 1:
         seen = "; ".join(
             f"{chat.uid} status={chat.status} "
             + ",".join(
@@ -328,16 +343,17 @@ def verify_boot_preconditions() -> None:
 
 
 def read_credentials() -> Credentials:
-    """Judge the file before parsing it, on facts a parser cannot see.
+    """The environment when it names PLOW_API_BASE; the file otherwise."""
+    if "PLOW_API_BASE" in os.environ:
+        try:
+            return Credentials()
+        except ValidationError as error:
+            park(f"the environment does not name where Plow is:\n{error.errors(include_input=False)}")
+    return read_file_credentials()
 
-    It decides where the agent's own bearer token is sent, so anyone else
-    owning or reading it chooses both. Two exact modes rather than a rule about
-    bits: one merely forbidding the write bits would admit 0644, which hands
-    the credential to every account in the container.
-    """
-    # Waited for, not merely required: a host may write this file after the
-    # container is already running. Present at boot costs nothing -- the first
-    # look succeeds.
+
+def read_file_credentials() -> FileCredentials:
+    """Judge the file before parsing it, on facts a parser cannot see."""
     for _ in range(CREDENTIALS_WAIT_S):
         if os.path.lexists(CREDENTIALS):
             break
@@ -345,21 +361,15 @@ def read_credentials() -> Credentials:
     try:
         info = os.lstat(CREDENTIALS)
     except OSError:
-        park(f"no credential at {CREDENTIALS} after {CREDENTIALS_WAIT_S}s")
+        park(f"no PLOW_API_BASE in environment and no credential at {CREDENTIALS} after {CREDENTIALS_WAIT_S}s")
     mode = stat.S_IMODE(info.st_mode)
     if not stat.S_ISREG(info.st_mode):
         park(f"{CREDENTIALS} is not a regular file")
     if (info.st_uid, info.st_gid) != (0, 0) or mode not in (0o600, 0o400):
         park(f"{CREDENTIALS} is {info.st_uid}:{info.st_gid} mode {mode:04o} -- expected root:root at 600 or 400")
     try:
-        # The path is passed rather than baked into the class, so this module
-        # names it once.
-        return Credentials(_env_file=CREDENTIALS)
+        return FileCredentials(_env_file=CREDENTIALS)
     except ValidationError as error:
-        # `include_input=False`: the default rendering quotes the offending
-        # input back, and for a missing key that input is the whole parsed
-        # file -- so a credential lacking PLOW_API_BASE would print the token
-        # it does have to s6's stderr, where every log reader can see it.
         park(f"{CREDENTIALS} does not contain only the documented keys:\n{error.errors(include_input=False)}")
 
 
@@ -374,7 +384,7 @@ def ask_plow(credentials: Credentials) -> Identity:
     url = credentials.plow_api_base.rstrip("/") + "/v1/agents/cloud/me"
     request = urllib.request.Request(
         url,
-        headers={"Authorization": f"Bearer {credentials.plow_agent_token}", "Accept": "application/json"},
+        headers={"Authorization": f"Bearer {credentials.bearer}", "Accept": "application/json"},
     )
     for attempt in range(1, RETRIES + 1):
         try:
@@ -944,14 +954,21 @@ def main() -> None:
     credentials = read_credentials()
     identity = ask_plow(credentials)
     home = home_chat(identity)
-    write_latch_instructions(identity, credentials.plow_agent_token)
+    if home is None:
+        print("plow-init: waiting for owner contact", file=sys.stderr, flush=True)
+        while home is None:
+            time.sleep(5)
+            identity = ask_plow(credentials)
+            if identity:
+                home = home_chat(identity)
+    write_latch_instructions(identity, credentials.bearer)
     values = {
         "PLOW_API_BASE": credentials.plow_api_base,
-        "PLOW_AGENT_TOKEN": credentials.plow_agent_token,
+        "PLOW_AGENT_TOKEN": credentials.bearer,
         "PLOW_HOME_CHANNEL": home.uid,
         # Chat and inference are the same credential; the config names the
         # inference key by variable rather than holding a value.
-        "HERMES_CUSTOM_PLOW_API_KEY": credentials.plow_agent_token,
+        "HERMES_CUSTOM_PLOW_API_KEY": credentials.bearer,
         # Fresh every boot. The gateway's loopback API server will not start
         # without one, and nothing reads it from a file.
         "API_SERVER_KEY": secrets.token_hex(32),

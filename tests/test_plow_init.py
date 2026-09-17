@@ -55,17 +55,21 @@ def credential(tmp_path, body="PLOW_API_BASE=https://api.plow.co\nPLOW_AGENT_TOK
     return path
 
 
-def test_the_process_environment_cannot_outrank_the_file(tmp_path, owned_by_root, monkeypatch):
-    """A settings model reads the environment first unless told not to.
-
-    `docker run -e PLOW_AGENT_TOKEN=...` would otherwise outrank the credential
-    the image was given, which is a rotation silently not taking.
-    """
-    monkeypatch.setenv("PLOW_API_BASE", "https://elsewhere.invalid")
+def test_without_plow_api_base_the_file_is_read(tmp_path, owned_by_root, monkeypatch):
+    """When PLOW_API_BASE is not in env, credentials file is read."""
+    monkeypatch.delenv("PLOW_API_BASE", raising=False)
     monkeypatch.setenv("PLOW_AGENT_TOKEN", "inherited-not-the-credential")
     credential(tmp_path)
     read = plow_init.read_credentials()
     assert (read.plow_api_base, read.plow_agent_token) == ("https://api.plow.co", "t")
+
+
+def test_the_environment_credentials_are_read(monkeypatch):
+    """When PLOW_API_BASE is in env, environment credentials are read."""
+    monkeypatch.setenv("PLOW_API_BASE", "https://env.plow.co")
+    monkeypatch.setenv("PLOW_AGENT_TOKEN", "sk-env-token")
+    read = plow_init.read_credentials()
+    assert (read.plow_api_base, read.plow_agent_token) == ("https://env.plow.co", "sk-env-token")
 
 
 @pytest.mark.parametrize("mode", [0o644, 0o620, 0o602, 0o666])
@@ -121,17 +125,18 @@ def parking(monkeypatch, tmp_path):
     return marker
 
 
-def test_a_missing_credential_parks_rather_than_exiting(tmp_path, parking):
+def test_a_missing_credential_parks_rather_than_exiting(tmp_path, monkeypatch, parking):
     """The warm pool's normal life, and the path that started all this.
 
     Exiting here is what panics the microVM: plow-init's non-zero exit takes
     /init with it, and /init is PID 1.
     """
+    monkeypatch.delenv("PLOW_API_BASE", raising=False)
     plow_init.CREDENTIALS = str(tmp_path / "absent")
     plow_init.CREDENTIALS_WAIT_S = 1
     with pytest.raises(Parked):
         plow_init.read_credentials()
-    assert "no credential at" in parking.read_text()
+    assert "no PLOW_API_BASE in environment" in parking.read_text()
 
 
 def test_parking_says_why_on_stderr_as_well_as_in_the_marker(parking, capsys):
@@ -305,13 +310,17 @@ def test_the_home_chat_is_the_owner_alone_with_this_agent_on_its_own_line():
         (),                                             # nothing at all
         (chat("a", roles=("owner", "member")),),        # a group
         (chat("a", status="pending"),),                 # not active yet
-        (chat("a"), chat("b")),                         # two candidates
         (chat("a", roles=("member",)),),                # nobody is the owner
         (chat("a", agents=("self", "peer")),),          # another assistant is here too
         (chat("a", line="ln_mailbox"),),                # only the persona's mailbox, not this line
     ],
 )
-def test_an_unclear_home_chat_refuses_and_says_what_it_saw(chats, parking):
+def test_no_home_chat_returns_none(chats):
+    assert plow_init.home_chat(identity(*chats)) is None
+
+
+def test_multiple_home_chats_refuse(parking):
+    chats = (chat("a"), chat("b"))
     with pytest.raises(Parked):
         plow_init.home_chat(identity(*chats))
     assert "cannot tell which chat is home" in parking.read_text()
