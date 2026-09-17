@@ -4,3 +4,5 @@ README.md
 **/*.pyc
 .env
 plow-credentials
+plow-credentials.example
+tests/
