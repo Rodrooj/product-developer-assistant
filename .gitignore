@@ -3,3 +3,4 @@ __pycache__/
 .env
 plow-credentials
 .DS_Store
+plow-credentials
