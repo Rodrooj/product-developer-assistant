@@ -4,6 +4,8 @@
 
 O **Product Developer Assistant** é um agente autônomo projetado para profissionais de desenvolvimento e gestão de produtos (Product Managers, Product Designers, Tech Leads e Engenheiros de Software). Ele atua como um parceiro de trabalho integrado, eliminando tarefas operacionais repetitivas e conectando **descoberta de produto, design, engenharia, documentação e comunicação** em um único fluxo conversacional através do **Plow Chat**.
 
+<img width="1254" height="1254" alt="Logo Assistant" src="https://github.com/user-attachments/assets/aede5bf4-0707-4f32-823a-5fc8211f5f14" />
+
 ---
 
 ## 🌟 O que o Agente Pode Fazer
