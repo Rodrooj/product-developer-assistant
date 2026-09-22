@@ -23,7 +23,7 @@ This document tracks the repository's readiness for the Plow × Hermes hackathon
 | Open-source license | PASS | `LICENSE` is now MIT. |
 | Public GitHub repository | BLOCKED | The GitHub repository is currently private. Change repository visibility to public before submission. |
 | Agent Index registration | TODO | Register this specific agent and obtain its Agent Index ID. |
-| Agent Index usage reporter/client | TODO | Add the required Python reporter/client and configure it with the registered Agent Index ID. |
+| Agent Index usage reporter/client | PASS (herdado) | O cliente já vem da imagem base `plow-hermes-agent`/`plow-cloud-agents`; este repositório não adiciona uma segunda implementação. Execute `just check-agent-index` com o serviço em execução para confirmar o processo ativo. |
 | Real user workflow | TODO | Implement the product-developer workflow derived from the CBL research; do not submit the base image alone as the finished agent. |
 | Working end-to-end demonstration | TODO | Run the finished agent through Plow Latch + Plow Chat/iMessage and record the required demonstration. |
 | Usage-window participation | TODO | Dogfood with real users and accumulate installs/token usage during the official counting window. |
@@ -42,7 +42,7 @@ For the hackathon implementation, the repository should converge on one concrete
 
 - Never commit `plow-credentials`, API keys, session state, or `.env` files.
 - Keep the existing fail-closed Plow initialization behavior intact.
-- Do not claim Agent Index registration or measured usage until it has actually been completed.
+- O cliente de uso é herdado da imagem base; ainda não afirmar registro deste agente ou uso medido até que o ID do Agent Index seja configurado e a medição seja confirmada.
 - Do not claim the repository is submission-ready while its visibility remains private.
 
 ## Source basis
