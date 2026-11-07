@@ -77,6 +77,21 @@ Support discovery and organization across:
 
 Do not assume every command is available on every installed `gh` version. Inspect `gh --help`, the relevant subcommand help, or use `gh api` when necessary.
 
+## Execution environment
+
+**Critical:** `gh` and `git` are installed and pre-authenticated **inside this agent's container**, not on the user's host machine.
+
+Always run `gh` and `git` commands using the **`terminal` tool** (the local shell backend). The `terminal` tool runs commands inside this container where `gh` is installed and authenticated via the `GH_TOKEN` environment variable.
+
+**Never use `plow_run_command`** (or any Plow/Latch MCP tool) to run `gh` or `git`. The `plow_run_command` tool executes on the user's Mac host machine, where `gh` is not installed. Using it for Git/GitHub operations will always fail.
+
+Correct tool choice:
+- `terminal` → use for all `gh`, `git`, and shell commands
+- `execute_code` → use only for Python data processing, never for `gh`/`git`
+- `plow_run_command` → use only for AppleScript, Latch automation, or Mac-specific tasks — not for `gh`/`git`
+
+When in doubt, run `terminal: gh auth status` first to confirm authentication is available.
+
 ## Operating modes
 
 ### 1. Status / briefing mode

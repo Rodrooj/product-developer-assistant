@@ -11,7 +11,7 @@ This is an orchestration skill, not a new task skill. Prefer composing existing 
 
 ## Core model
 
-Hermes already provides a `cronjob` tool and `hermes cron` CLI. Cron jobs can be one-shot or recurring, can attach one or more skills, and run in fresh agent sessions. Use that scheduler as the source of truth rather than inventing a second schedule database.
+Hermes already provides a `cronjob` tool and `hermes cron` CLI. Cron jobs can be one-shot or recurring, support skill-backed sessions by attaching one or more skills, and run in fresh agent sessions. Use that scheduler as the source of truth rather than inventing a second schedule database.
 
 Examples:
 

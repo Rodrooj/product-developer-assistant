@@ -13,6 +13,21 @@ The goal is not merely to browse and answer. For substantial work, produce an au
 research question -> scope -> plan -> search -> evidence -> synthesis -> dossier -> validation
 ```
 
+## Execution environment
+
+**Critical:** Web browsing runs via **Latch on the user's Mac**. Use these Plow MCP tools:
+
+| Tool | Use |
+|---|---|
+| `plow_browser_open` | Open a URL in the Latch browser |
+| `plow_browser_request` | Fetch page content / perform HTTP requests |
+| `plow_browser` | General Latch browser interaction |
+| `plow_run_command` | Mac shell commands when needed (e.g., `curl`) |
+
+**Never use `terminal`** for web requests — the `terminal` runs inside a Linux container with restricted/no network. Never use `execute_code` as a web client.
+
+For dossier file creation, use `plow_write_file` to save the Markdown file on the user's Mac at the path indicated in the dossier naming convention.
+
 ## Research modes
 
 ### Market research

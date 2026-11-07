@@ -5,11 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LABEL="com.plow.product-assistant.automation-wake"
 AGENTS_DIR="$HOME/Library/LaunchAgents"
 LOG_DIR="$HOME/Library/Logs"
+SUPPORT_DIR="$HOME/Library/Application Support/Plow"
 PLIST="$AGENTS_DIR/$LABEL.plist"
 TEMPLATE="$SCRIPT_DIR/$LABEL.plist"
-WAKE_SCRIPT="$SCRIPT_DIR/automation-wake.sh"
+WAKE_SCRIPT="$SUPPORT_DIR/automation-wake.sh"
 
-mkdir -p "$AGENTS_DIR" "$LOG_DIR"
+mkdir -p "$AGENTS_DIR" "$LOG_DIR" "$SUPPORT_DIR"
+cp "$SCRIPT_DIR/automation-wake.sh" "$WAKE_SCRIPT"
 chmod 700 "$WAKE_SCRIPT"
 
 if [[ ! -x "$WAKE_SCRIPT" ]]; then
