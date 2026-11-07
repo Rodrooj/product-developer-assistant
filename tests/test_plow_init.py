@@ -930,19 +930,26 @@ def test_the_home_guard_puts_a_chmodded_home_back_and_says_what_it_found(image_u
     for path in (home, home / "skills"):
         path.chmod(0o700)
     real_fstat = os.fstat
-    monkeypatch.setattr(plow_init.os, "fstat", lambda fd: types.SimpleNamespace(
-        st_mode=real_fstat(fd).st_mode, st_uid=0, st_gid=1000))
-    monkeypatch.setattr(plow_init.os, "fchown", lambda fd, uid, gid: None)
-    monkeypatch.setattr(plow_init.time, "sleep", lambda seconds: (_ for _ in ()).throw(Slept()))
+    # os is a shared module object: a function-scoped monkeypatch leaks into
+    # pytest's TemporaryDirectory cleanup, whose file wrapper expects the
+    # complete stat_result shape (including st_size). Keep these substitutions
+    # scoped to the guard exercise itself.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(plow_init.os, "fstat", lambda fd: types.SimpleNamespace(
+            st_mode=real_fstat(fd).st_mode, st_uid=0, st_gid=1000))
+        scoped.setattr(plow_init.os, "fchown", lambda fd, uid, gid: None)
+        scoped.setattr(plow_init.time, "sleep", lambda seconds: (_ for _ in ()).throw(Slept()))
 
-    with pytest.raises(Slept):
-        plow_init.guard_home()
-    for path in (home, home / "skills"):
-        assert stat.S_IMODE(path.stat().st_mode) == 0o3770
-    assert f"{home} was 0:1000 700" in capsys.readouterr().err
+        with pytest.raises(Slept):
+            plow_init.guard_home()
+        for path in (home, home / "skills"):
+            assert stat.S_IMODE(path.stat().st_mode) == 0o3770
+        assert f"{home} was 0:1000 700" in capsys.readouterr().err
 
-    with pytest.raises(Slept):
-        plow_init.guard_home()
+        with pytest.raises(Slept):
+            plow_init.guard_home()
+
+    # The patch is gone before pytest tears down tmp_path.
     assert capsys.readouterr().err == ""
 
 

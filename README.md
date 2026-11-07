@@ -1,26 +1,36 @@
 # Product Developer Assistant 🚀
 
-> **Assistente Inteligente para Desenvolvedores de Produto** — Integrado ao ecossistema [Plow Latch](https://github.com/plow-pbc/latch), [Hermes Agent](https://github.com/NousResearch/hermes-agent) e s6-overlay.
+> **Workflow principal:** transforme pesquisa web e netnografia em um dossiê Markdown auditável, da coleta de fontes à síntese estruturada, diretamente pelo Plow Chat.
 
-O **Product Developer Assistant** é um agente autônomo projetado para profissionais de desenvolvimento e gestão de produtos (Product Managers, Product Designers, Tech Leads e Engenheiros de Software). Ele atua como um parceiro de trabalho integrado, eliminando tarefas operacionais repetitivas e conectando **descoberta de produto, design, engenharia, documentação e comunicação** em um único fluxo conversacional através do **Plow Chat**.
+O **Product Developer Assistant** é um agente Plow/Hermes para esse fluxo de pesquisa de ponta a ponta. Ele também oferece seis capacidades complementares para dar continuidade ao trabalho de produto: documentos, design, GitHub, e-mail, arquivos e automações.
 
 <img width="1254" height="1254" alt="Logo Assistant" src="https://github.com/user-attachments/assets/aede5bf4-0707-4f32-823a-5fc8211f5f14" />
 
 ---
 
-## 🌟 O que o Agente Pode Fazer
+## 🌟 Capacidades
 
-O assistente vem equipado com um conjunto completo de habilidades personalizadas (*custom skills*):
+### Workflow principal: pesquisa web → dossiê Markdown
+
+A habilidade `web-research` conduz pesquisa de mercado, benchmarking competitivo e netnografia, registra fontes auditáveis e salva a síntese como um dossiê estruturado em Markdown.
+
+### Todas as habilidades
+
+A tabela abaixo apresenta a habilidade do workflow principal e as seis capacidades complementares.
 
 | Habilidade | Identificador | O que faz | Como funciona |
 |---|---|---|---|
-| **Pesquisa de Mercado & Netnografia** | `web-research` | Conduz pesquisas de mercado, benchmarking competitivo, análise de comunidades e gera dossiês estruturados em Markdown. | Navega na web através das ferramentas nativas do Latch (`plow_browser_*`), salvando evidências e links de fontes auditáveis. |
+| **Pesquisa de Mercado & Netnografia (workflow principal)** | `web-research` | Conduz pesquisas de mercado, benchmarking competitivo, análise de comunidades e gera dossiês estruturados em Markdown. | Navega na web através das ferramentas nativas do Latch (`plow_browser_*`), salvando evidências e links de fontes auditáveis. |
 | **Revisão e Escrita de Documentos** | `document-reviewer` | Redige, revisa, audita e aprimora especificações, relatórios e PRDs no Apple Pages e Microsoft Word. | Automação nativa no macOS via AppleScript (`plow_run_applescript`), realizando edições pontuais e preservando estilos e formatação. |
-| **Organização de Design & UI/UX** | `figma-organizer` | Inspeciona arquivos de design, componentes, design tokens, metadados e mapeamentos de Code Connect no Figma. | Integração direta com o servidor MCP oficial do Figma via autenticação OAuth 2.0 (37 ferramentas ativas). |
+| **Organização de Design & UI/UX** | `figma-organizer` | Inspeciona arquivos de design, componentes, design tokens, metadados e mapeamentos de Code Connect no Figma. | Integração direta com o servidor MCP oficial do Figma via OAuth 2.1 via cliente MCP do Hermes, com allowlist restrita em `image/seed/config.yaml`. |
 | **Manutenção de Repositórios & Git** | `github-ops` | Acompanha PRs para revisão, issues atribuídas, commits recentes e status de workflows do GitHub Actions. | Execução via GitHub CLI (`gh`) autenticado no ambiente do container através da ferramenta `terminal`. |
-| **Leitor de E-mails Multi-conta** | `email-reader` | Monitora, lê e filtra caixas de entrada de múltiplos provedores simultaneamente (Gmail, iCloud e Outlook). | Script customizado `plow-imap.py` com suporte a chaveamento de contas (`--account gmail`, `--account icloud`). |
+| **Leitor de E-mails Multi-conta** | `email-reader` | Oferece perfis IMAP para Gmail, iCloud e Outlook; cada conta exige credenciais e autorização válidas no provedor. | Script `plow-imap.py` com seleção por `--account`. Gmail e iCloud tiveram validação funcional em desenvolvimento; Outlook está configurado, mas não foi validado funcionalmente. |
 | **Organização de Arquivos Locais** | `file-organization` | Organiza arquivos da Mesa (Desktop), Downloads e projetos seguindo regras de categorização por tipo, contexto ou data. | Manipulação do sistema de arquivos local do Mac via ferramentas do Latch (`plow_run_command`). |
 | **Automação & Agendamento Contínuo** | `automation` | Agenda rotinas periódicas (ex: resumos diários de PRs, checagem de e-mails, alertas de Figma) com suporte a suspensão do sistema. | Integração com Hermes Cron e LaunchAgent do macOS (`com.plow.product-assistant.automation-wake`), utilizando `caffeinate`. |
+
+## ✅ Casos de uso reais
+
+Consulte o [inventário de casos de uso e evidências](docs/USE_CASES.md). Ele distingue evidência pública de relatos operacionais que ainda dependem de artefatos externos para verificação independente.
 
 ---
 
@@ -157,16 +167,20 @@ Assim que o agente inicializar, você pode interagir com ele naturalmente em Por
 
 ---
 
-## 🧪 Executando Testes Unitários
+## 🧪 Executando a suíte completa de testes
 
-O projeto possui uma suíte com 98 testes automatizados cobrindo sanitização de boot, inicialização, suporte multi-conta IMAP, persona e scripts do macOS:
+A suíte automatizada cobre inicialização e sanitização do container, configuração Hermes, bridge IMAP, skills e scripts auxiliares. O comando abaixo é o mesmo executado pelo workflow de regressão do GitHub Actions:
 
 ```bash
-uv run --with pytest --with pyyaml --with python-dotenv --with pydantic --with pydantic-settings pytest tests
+python -m pip install -r requirements-test.txt
+python -m pytest -q tests
+python -m compileall -q image/s6-overlay/scripts image/seed/skills/productivity/email-reader
 ```
+
+No ambiente com `uv`, também é possível executar `just test`.
 
 ---
 
 ## 📄 Licença
 
-Este projeto é licenciado sob os termos da licença Apache 2.0. Consulte os arquivos [LICENSE](LICENSE) e [NOTICE](NOTICE) para mais detalhes.
+Este projeto é licenciado sob os termos da [licença MIT](LICENSE).
