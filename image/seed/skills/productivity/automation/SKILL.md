@@ -1,11 +1,11 @@
 ---
 name: automation
-description: Create and manage scheduled automations for Hermes skills and Plow Latch workflows, with macOS sleep/wake recovery and safe completion using launchd and caffeinate.
+description: Create and manage Hermes Cron automations across Plow/macOS and standalone Linux, using platform-specific wake recovery only when required.
 ---
 
 # Automation
 
-Use this skill as the user's scheduling/orchestration layer. It turns a natural-language recurring or one-shot request into a Hermes scheduled job that can load one or more existing skills and, when needed, use Plow Latch's native Mac capabilities.
+Use this skill as the user's scheduling/orchestration layer. It turns a natural-language recurring or one-shot request into a Hermes scheduled job that can load one or more existing skills and use the integrations available in the active deployment.
 
 This is an orchestration skill, not a new task skill. Prefer composing existing skills over duplicating their instructions.
 
@@ -21,7 +21,7 @@ cronjob(action="create", name="Morning research", schedule="0 9 * * *", skills=[
 cronjob(action="create", name="Inbox triage", schedule="every 2h", skills=["email-reader"], prompt="Triage new mail and organize it according to my existing mailbox rules. Do not send messages.")
 ```
 
-The user can schedule native Hermes capabilities as well as custom skills. If a requested task needs local Mac access, attach the appropriate skill and ensure the cron session has the required Latch MCP tool available.
+The user can schedule native Hermes capabilities as well as custom skills. Attach the appropriate skill and verify that its required MCP server, credentials, and filesystem scope are available to the scheduled session.
 
 ## Lifecycle
 
@@ -32,7 +32,7 @@ For create/update/remove/pause/resume requests:
 3. Confirm the requested automation is safe to run unattended. High-impact actions such as payments, account changes, destructive file operations, or messages sent in the user's name should remain approval-gated unless the user explicitly establishes a standing authorization compatible with the tool's policy.
 4. Create or update the Hermes cron job.
 5. Verify it with `cronjob(action="list")` or `hermes cron status/list` when CLI access is available.
-6. Explain the next run and what happens if the Mac was asleep.
+6. Explain the next run and any platform-specific missed-run behavior.
 
 Do not create duplicate jobs when an existing automation already matches the requested purpose. List first, then update the existing job where appropriate.
 
@@ -96,6 +96,16 @@ If Latch is unavailable after wake:
 2. allow the Hermes job to report the execution failure;
 3. surface the failed/overdue job and suggest retrying after Latch is healthy;
 4. never bypass Latch's approval or scope controls.
+
+## Standalone Linux scheduling
+
+Hermes Cron is the source of truth on Linux as well. A normally running VPS does not need the macOS LaunchAgent or caffeinate wake bridge. Do not install or invoke the macOS assets on Linux.
+
+- Use Hermes Cron to create, list, pause, resume, run, and remove jobs.
+- Keep the Linux host awake and the Hermes gateway supervised by Docker Compose/systemd.
+- If the host is intentionally suspended, missed work is not guaranteed to replay at the exact scheduled minute. After resume, inspect Hermes Cron status and use the scheduler's supported tick/doctor commands; do not start a parallel scheduler database.
+- Scheduled jobs that use FoxMCP must have the FoxMCP MCP server available. The standalone deployment intentionally exposes read-oriented browser tools only; scheduled browser jobs must not claim to click, submit, or authenticate.
+- A job that requires Mac-only Pages, Finder, or AppleScript operations must run in the Plow/macOS deployment, not on this Linux server.
 
 ## Security
 

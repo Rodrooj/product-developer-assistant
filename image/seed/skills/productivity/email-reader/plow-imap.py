@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Dependency-free IMAP bridge optimized for agent triage.
 
-Credentials are read from PLOW_IMAP_HOST, PLOW_IMAP_PORT, PLOW_IMAP_USERNAME,
-and PLOW_IMAP_PASSWORD. They are never accepted as command-line arguments.
+Credentials are read from EMAIL_IMAP_* variables (or legacy PLOW_IMAP_* aliases). They are never accepted as command-line arguments.
 """
 from __future__ import annotations
 import argparse, email, email.header, email.policy, imaplib, json, os, re, ssl, sys
@@ -13,8 +12,15 @@ from email.utils import getaddresses, parsedate_to_datetime
 class ImapClientError(RuntimeError): pass
 
 def env(name, default=None, required=False):
-    value = os.environ.get(name, default)
-    if required and not value: raise ImapClientError(f"missing required environment variable: {name}")
+    """Read standalone EMAIL_IMAP_* names while preserving legacy PLOW_IMAP_* aliases."""
+    candidates = [name]
+    if name.startswith("PLOW_IMAP_"):
+        candidates.insert(0, name.replace("PLOW_IMAP_", "EMAIL_IMAP_", 1))
+    elif name.startswith("EMAIL_IMAP_"):
+        candidates.append(name.replace("EMAIL_IMAP_", "PLOW_IMAP_", 1))
+    value = next((os.environ[key] for key in candidates if os.environ.get(key)), default)
+    if required and not value:
+        raise ImapClientError(f"missing required environment variable: {candidates[0]}")
     return value
 
 def decode_header(value):
@@ -50,7 +56,7 @@ def attachments(msg):
 
 def resolve_credentials(account=None):
     if account:
-        prefix = f"PLOW_IMAP_{account.upper()}_"
+        prefix = f"EMAIL_IMAP_{account.upper()}_"
         default_hosts = {"gmail": "imap.gmail.com", "icloud": "imap.mail.me.com", "outlook": "outlook.office365.com", "hotmail": "outlook.office365.com"}
         default_host = default_hosts.get(account.lower())
         host = env(f"{prefix}HOST", default=default_host, required=True)
@@ -157,7 +163,7 @@ def cmd_accounts(client, args):
         print(json.dumps(acc, ensure_ascii=False, separators=(",", ":")))
 
 def parser():
-    p=argparse.ArgumentParser(description="Minimal IMAP bridge for Plow email triage"); sub=p.add_subparsers(dest="command",required=True)
+    p=argparse.ArgumentParser(description="Minimal IMAP bridge for Product Developer Assistant email triage"); sub=p.add_subparsers(dest="command",required=True)
     sub.add_parser("accounts")
     x=sub.add_parser("mailboxes"); x.add_argument("--account", default=None)
     x=sub.add_parser("list"); x.add_argument("--mailbox",default="INBOX"); x.add_argument("--limit",type=int,default=100); x.add_argument("--unread",action="store_true"); x.add_argument("--since",type=int); x.add_argument("--account", default=None)

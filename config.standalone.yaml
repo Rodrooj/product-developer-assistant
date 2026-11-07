@@ -1,0 +1,74 @@
+# Standalone Linux configuration. Secrets are kept outside this file; model
+# and endpoint values are interpolated from .env.standalone by Hermes.
+model:
+  default: "${LOCAL_MODEL:-qwen3:4b}"
+  provider: custom
+  base_url: "${OLLAMA_BASE_URL:-http://ollama:11434/v1}"
+  api_key: "${OLLAMA_API_KEY:-ollama}"
+  context_length: 65536
+
+mcp_servers:
+  foxmcp:
+    command: /usr/local/bin/foxmcp-server
+    args: []
+    enabled: true
+    trust: untrusted
+    env:
+      FOXMCP_AUTO_APPROVE: "0"
+      CHROME: /usr/bin/chromium
+    timeout: 120
+    connect_timeout: 60
+    tools:
+      include:
+        - browser.open
+        - tabs.list
+        - dom.query
+        - extract.text
+        - extract.table
+        - bkg.query
+        - decision.explain
+      resources: false
+      prompts: false
+  figma:
+    url: "https://mcp.figma.com/mcp"
+    auth: oauth
+    trust: untrusted
+    enabled: true
+    timeout: 120
+    connect_timeout: 60
+    tools:
+      include:
+        - whoami
+        - get_metadata
+        - get_design_context
+        - get_variable_defs
+        - get_libraries
+        - search_design_system
+        - get_screenshot
+        - use_figma
+        - get_code_connect_map
+        - add_code_connect_map
+        - get_code_connect_suggestions
+        - send_code_connect_mappings
+      resources: false
+      prompts: false
+
+agent:
+  disabled_toolsets:
+    - clarify
+    - browser
+    - web
+  api_max_retries: 5
+
+cron:
+  model_drift_guard: false
+
+terminal:
+  backend: local
+  cwd: /workspace
+
+memory:
+  memory_char_limit: 8000
+
+display:
+  memory_notifications: "on"

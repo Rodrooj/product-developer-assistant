@@ -66,6 +66,34 @@ Consulte o [inventário de casos de uso e evidências](docs/USE_CASES.md). Ele d
 
 ---
 
+## 🐧 Execução independente em Linux (Ollama + FoxMCP)
+
+Além da imagem integrada ao Plow descrita acima, o repositório agora oferece uma segunda distribuição **standalone**. Ela mantém as sete skills e troca a inicialização obrigatória do Plow por Hermes Agent oficial, um modelo local servido pelo Ollama e o FoxMCP como MCP de navegador.
+
+A versão original continua intacta: use Dockerfile + compose.yml para Plow. Para Linux independente, use Dockerfile.standalone + compose.standalone.yml.
+
+**Resumo da arquitetura standalone:**
+
+- Hermes Agent executa as skills, ferramentas, memória e Hermes Cron.
+- Ollama fornece inferência local por API OpenAI-compatible; o padrão inicial é Qwen 3 4B com contexto de 64K.
+- FoxMCP é compilado a partir do checkout privado/local e iniciado pelo Hermes via MCP stdio.
+- Figma continua usando o MCP oficial com OAuth.
+- GitHub usa gh/git; e-mail usa IMAP; documentos e arquivos operam no workspace montado em /workspace.
+
+**Início rápido:**
+
+1. Mantenha os repositórios Product Developer Assistant e FoxMCP disponíveis no mesmo host Linux.
+2. Execute scripts/standalone-init.sh e configure .env.standalone.
+3. Execute scripts/check-foxmcp-source.sh.
+4. Execute scripts/standalone-up.sh e, após verificar espaço livre, scripts/pull-standalone-model.sh.
+5. Para conectar o Figma, execute hermes mcp auth figma dentro do container.
+
+O modo standalone mantém as habilidades, mas respeita as diferenças de plataforma: Apple Pages/AppleScript continuam disponíveis apenas na variante Plow/macOS; a variante Linux trabalha com DOCX, ODT e PDF. O FoxMCP standalone é deliberadamente read-only para navegação e não tem autorização interativa para ações de alto risco. Consulte [a arquitetura, requisitos e limites da implantação Linux](docs/standalone-linux.md) antes de publicar o serviço.
+
+Atenção: o Hermes exige contexto de pelo menos 64 mil tokens. O script de download do modelo aborta quando há menos de 6 GiB livres em disco. Isso evita consumir o espaço restante de um servidor sem capacidade suficiente para o modelo e os dados persistentes.
+
+---
+
 ## 🚀 Como Configurar e Utilizar
 
 ### 1. Pré-requisitos
