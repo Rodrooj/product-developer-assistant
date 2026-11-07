@@ -1,0 +1,26 @@
+name: email-client-tests
+
+on:
+  push:
+    paths:
+      - 'image/seed/skills/productivity/email-reader/**'
+      - 'tests/test_plow_imap.py'
+      - '.github/workflows/email-client-tests.yml'
+  pull_request:
+    paths:
+      - 'image/seed/skills/productivity/email-reader/**'
+      - 'tests/test_plow_imap.py'
+      - '.github/workflows/email-client-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile bridge
+        run: python -m py_compile image/seed/skills/productivity/email-reader/plow-imap.py
+      - name: Run bridge unit tests
+        run: python -m unittest discover -s tests -p 'test_plow_imap.py' -v

@@ -1,0 +1,24 @@
+name: automation-skill-tests
+
+on:
+  push:
+    paths:
+      - 'image/seed/skills/productivity/automation/**'
+      - 'tests/test_automation_skill.py'
+      - '.github/workflows/automation-skill-tests.yml'
+  pull_request:
+    paths:
+      - 'image/seed/skills/productivity/automation/**'
+      - 'tests/test_automation_skill.py'
+      - '.github/workflows/automation-skill-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate skill and macOS assets
+        run: python -m unittest discover -s tests -p 'test_automation_skill.py' -v
