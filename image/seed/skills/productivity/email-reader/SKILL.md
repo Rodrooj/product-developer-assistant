@@ -5,7 +5,7 @@ description: Read, triage, organize, summarize, and draft replies for the owner'
 
 # Email Reader and Organizer
 
-You are an email triage specialist. Use the bundled IMAP bridge at `image/seed/skills/productivity/email-reader/plow-imap.py` through Python as the mailbox transport instead of relying on browser/UI interaction when the client can perform the requested operation. The client is deliberately two-stage: fetch compact metadata first, then fetch message content only for messages that need semantic analysis.
+You are an email triage specialist. Use the bundled IMAP bridge at `$HERMES_HOME/skills/productivity/email-reader/plow-imap.py` through Python as the mailbox transport instead of relying on browser/UI interaction when the client can perform the requested operation. The client is deliberately two-stage: fetch compact metadata first, then fetch message content only for messages that need semantic analysis.
 
 ## Core contract
 
@@ -17,7 +17,7 @@ Your jobs are to discover mailboxes, triage messages, summarize important mail, 
 
 Always prefer the cheapest sufficient representation:
 
-1. `python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py mailboxes` when the target mailbox is unknown.
+1. `python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py mailboxes` when the target mailbox is unknown.
 2. `... list` to retrieve compact metadata: UID, sender, recipients, subject, dates, flags, thread headers, and message size.
 3. Filter/rank metadata before fetching bodies.
 4. `... fetch --uid ...` only for messages needing semantic inspection.
@@ -63,7 +63,7 @@ For a message requiring a response:
 3. Draft a reply in the owner's language and tone.
 4. Separate facts from assumptions.
 5. Show the complete proposed reply.
-6. Sending requires explicit approval through the normal Plow confirmation flow and an actual send-capable tool.
+6. This IMAP bridge is read/organization-only and has no outbound send capability. Draft replies for the owner to review; do not claim to send mail. If a future deployment adds a separate send-capable integration, it must have its own explicit approval gate.
 
 Never claim a reply was sent unless the send operation reports success. Never bypass an approval prompt. This IMAP reader intentionally does not implement outbound mail so reading credentials cannot become a hidden send capability.
 
@@ -100,18 +100,18 @@ The objective is useful decisions per byte transferred and per model token, whil
 The bridge is stored beside this skill and emits compact JSON objects. It supports multiple accounts (e.g. Gmail, iCloud, Outlook) via `--account`:
 
 ```text
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py accounts
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py mailboxes --account gmail
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py mailboxes --account icloud
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py mailboxes --account outlook
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --limit 100 --account gmail
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --unread --since 7 --account icloud
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py fetch --mailbox INBOX --uid 123 --text-limit 12000 --account outlook
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py search --mailbox INBOX --query FROM alice@example.com --account gmail
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py move --source INBOX --destination Work --uid 123 --account gmail
-python /var/lib/hermes/skills/productivity/email-reader/plow-imap.py flag --mailbox INBOX --uid 123 --flag Flagged --add --account icloud
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py accounts
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py mailboxes --account gmail
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py mailboxes --account icloud
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py mailboxes --account outlook
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --limit 100 --account gmail
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py list --mailbox INBOX --unread --since 7 --account icloud
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py fetch --mailbox INBOX --uid 123 --text-limit 12000 --account outlook
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py search --mailbox INBOX --query FROM alice@example.com --account gmail
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py move --source INBOX --destination Work --uid 123 --account gmail
+python $HERMES_HOME/skills/productivity/email-reader/plow-imap.py flag --mailbox INBOX --uid 123 --flag Flagged --add --account icloud
 ```
 
-Credentials can be general (`PLOW_IMAP_HOST`, `PLOW_IMAP_PORT`, `PLOW_IMAP_USERNAME`, `PLOW_IMAP_PASSWORD`) or per-account (`PLOW_IMAP_GMAIL_*`, `PLOW_IMAP_ICLOUD_*`, `PLOW_IMAP_OUTLOOK_*`). Never put these values in command arguments or skill text.
+Credentials can use the neutral EMAIL_IMAP_* names or legacy PLOW_IMAP_* aliases, either for the default account or per account (GMAIL, ICLOUD, and OUTLOOK profiles). Never put values in command arguments or skill text.
 
-If the bridge cannot complete an operation, report the concrete failure and use an available Plow/Latch capability only when actually appropriate. Never invent mailbox state.
+If the bridge cannot complete an operation, report the concrete failure. Use another email integration only if it is actually available in the active deployment and separately authorized. Never invent mailbox state.

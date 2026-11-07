@@ -1,0 +1,101 @@
+--- a/crates/foxmcp-server/src/security.rs
++++ b/crates/foxmcp-server/src/security.rs
+@@ -179,6 +179,19 @@
+     /// Evaluates tool arguments to determine dynamic risk level elevation.
+     pub fn classify_tool(&self, tool_name: &str, params: &serde_json::Value) -> RiskLevel {
+         let base = self.base_risk(tool_name);
++
++        // Standalone agent runs on a server. Treat non-public destinations as
++        // critical so the headless authorizer (configured to deny by default)
++        // refuses obvious SSRF, local-file, and container-network targets.
++        if tool_name == "browser.open" {
++            if let Some(url) = params.get("url").and_then(|v| v.as_str()) {
++                if is_non_public_browser_target(url) {
++                    return RiskLevel::Critical;
++                }
++            } else {
++                return RiskLevel::Critical;
++            }
++        }
+ 
+         // 1. Dynamic elevation for URL targets (browser.open)
+         if let Some(url) = params.get("url").and_then(|v| v.as_str()) {
+@@ -343,10 +356,78 @@
+     }
+ }
+ 
++
++fn is_non_public_browser_target(target: &str) -> bool {
++    let normalized = target.trim().to_lowercase();
++    let Some((scheme, remainder)) = normalized.split_once("://") else {
++        return true;
++    };
++    if scheme != "http" && scheme != "https" {
++        return true;
++    }
++
++    let authority = remainder
++        .split(|c| c == '/' || c == '?' || c == '#')
++        .next()
++        .unwrap_or("");
++    let host_port = authority.rsplit('@').next().unwrap_or("");
++    let host = if host_port.starts_with('[') {
++        host_port.split(']').next().unwrap_or("").trim_start_matches('[')
++    } else {
++        host_port.split(':').next().unwrap_or("")
++    };
++
++    if host.is_empty()
++        || host == "localhost"
++        || host.ends_with(".localhost")
++        || host.ends_with(".local")
++        || host.ends_with(".internal")
++        || host == "host.docker.internal"
++        || host == "ollama"
++        || host == "foxmcp"
++    {
++        return true;
++    }
++
++    match host.parse::<std::net::IpAddr>() {
++        Ok(std::net::IpAddr::V4(ip)) => {
++            let o = ip.octets();
++            ip.is_private()
++                || ip.is_loopback()
++                || ip.is_link_local()
++                || ip.is_unspecified()
++                || ip.is_broadcast()
++                || ip.is_multicast()
++                || o[0] == 0
++                || (o[0] == 100 && (64..=127).contains(&o[1]))
++        }
++        Ok(std::net::IpAddr::V6(ip)) => {
++            ip.is_loopback()
++                || ip.is_unspecified()
++                || ip.is_unique_local()
++                || ip.is_unicast_link_local()
++                || ip.is_multicast()
++        }
++        Err(_) => false,
++    }
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use serde_json::json;
++
++    #[test]
++    fn test_non_public_browser_targets_are_blocked() {
++        assert!(is_non_public_browser_target("http://127.0.0.1:8787/health"));
++        assert!(is_non_public_browser_target("http://10.0.0.5/admin"));
++        assert!(is_non_public_browser_target("http://172.19.0.1:8787"));
++        assert!(is_non_public_browser_target("http://192.168.1.1"));
++        assert!(is_non_public_browser_target("http://ollama:11434"));
++        assert!(is_non_public_browser_target("file:///etc/passwd"));
++        assert!(is_non_public_browser_target("http://[::1]/"));
++        assert!(!is_non_public_browser_target("https://example.com"));
++    }
+ 
+     #[test]
+     fn test_risk_level_ordering() {

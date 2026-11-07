@@ -1,0 +1,26 @@
+# The image tag can be pinned in .env.standalone. Keep this ARG globally
+# scoped because it is expanded by the second FROM instruction.
+ARG HERMES_BASE_IMAGE=nousresearch/hermes-agent:latest
+
+# Build FoxMCP from the operator's private/local source checkout. The named
+# build context is supplied by compose.standalone.yml; Plow's image is not used.
+FROM rust:1-bookworm AS foxmcp-builder
+WORKDIR /src
+COPY --from=foxmcp-source /Cargo.toml /Cargo.lock ./
+COPY --from=foxmcp-source /crates ./crates
+COPY integrations/foxmcp/deny-private-browser-targets.patch /tmp/deny-private-browser-targets.patch
+RUN apt-get update     && apt-get install -y --no-install-recommends patch     && patch --batch --forward -p1 < /tmp/deny-private-browser-targets.patch     && cargo test --locked --package foxmcp-server test_non_public_browser_targets_are_blocked     && cargo build --locked --release --package foxmcp-server     && rm -rf /var/lib/apt/lists/*
+
+FROM ${HERMES_BASE_IMAGE}
+
+USER root
+RUN apt-get update     && apt-get install -y --no-install-recommends ca-certificates curl gh chromium     && rm -rf /var/lib/apt/lists/*     && uv pip install --system --no-cache python-docx python-pptx pypdf odfpy
+
+COPY --from=foxmcp-builder /src/target/release/foxmcp-server /usr/local/bin/foxmcp-server
+RUN chmod 0755 /usr/local/bin/foxmcp-server
+
+# FoxMCP's stdio process is launched by Hermes. The gatekeeper is fail-closed
+# for high/critical browser operations in a headless environment.
+ENV CHROME=/usr/bin/chromium     FOXMCP_AUTO_APPROVE=0     HERMES_HOME=/opt/data
+
+# Keep the official Hermes image entrypoint and s6 supervision unchanged.

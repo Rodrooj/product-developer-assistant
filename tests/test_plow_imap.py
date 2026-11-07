@@ -1,6 +1,7 @@
 import importlib.util
 import pathlib
 import unittest
+from unittest.mock import patch
 from email import message_from_string
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -25,6 +26,28 @@ class ImapBridgeTests(unittest.TestCase):
         body, truncated = module.text_part(msg, 100)
         self.assertEqual(body, "Important body")
         self.assertFalse(truncated)
+
+    def test_standalone_email_imap_variables_resolve_gmail(self):
+        with patch.dict("os.environ", {
+            "EMAIL_IMAP_GMAIL_HOST": "imap.gmail.com",
+            "EMAIL_IMAP_GMAIL_PORT": "993",
+            "EMAIL_IMAP_GMAIL_USERNAME": "person@example.com",
+            "EMAIL_IMAP_GMAIL_PASSWORD": "app-password",
+        }, clear=True):
+            self.assertEqual(
+                module.resolve_credentials("gmail"),
+                ("imap.gmail.com", 993, "person@example.com", "app-password"),
+            )
+
+    def test_legacy_plow_email_variables_remain_compatible(self):
+        with patch.dict("os.environ", {
+            "PLOW_IMAP_ICLOUD_USERNAME": "person@icloud.com",
+            "PLOW_IMAP_ICLOUD_PASSWORD": "legacy-app-password",
+        }, clear=True):
+            self.assertEqual(
+                module.resolve_credentials("icloud"),
+                ("imap.mail.me.com", 993, "person@icloud.com", "legacy-app-password"),
+            )
 
     def test_parser_exposes_safe_read_and_organization_operations(self):
         parser = module.parser()
