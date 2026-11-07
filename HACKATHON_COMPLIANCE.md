@@ -1,50 +1,50 @@
 # Plow × Hermes Hackathon — Compliance
 
-This document tracks the repository's readiness for the Plow × Hermes hackathon. It distinguishes requirements confirmed by the supplied kickoff/CBl materials from items that still require an external action or validation.
+Última verificação do estado do repositório: **2026-11-07**.
 
-## Competition requirements confirmed from the supplied materials
+Este checklist separa o que está comprovado no GitHub e no código do que depende de serviços externos, credenciais de produção ou evidência que ainda não foi publicada. Um item marcado como não verificado não deve ser apresentado como concluído.
 
-- Build an agent on the Plow ecosystem and demonstrate a real, useful workflow.
-- Use Plow Latch as the local execution layer and Plow Chat/iMessage as the user-facing interaction path.
-- Build on Hermes Agent.
-- Publish the agent as open source on GitHub.
-- Register/publish the agent through the AI Worth Using Agent Index so installs and token usage can be measured.
-- Run the Agent Index usage reporter/client on the agent; the kickoff explicitly states that a Python script is used to communicate usage back to the API.
-- Provide a working demonstration using the real agent. The supplied research notes the requirement for a functional public repository and a demonstration rather than mockups.
-- Competition ranking is driven by real installs and token usage during the specified usage window; the top 10 proceed to human judging.
+## Requisitos identificados
 
-## Repository status
+- Agente baseado em Hermes e integrado ao ecossistema Plow.
+- Plow Latch como camada de execução local e Plow Chat/iMessage como interface de interação.
+- Repositório público e licença open source.
+- Registro do agente no AI Worth Using Agent Index e reporter de uso ativo.
+- Workflow de produto demonstrável com o agente real.
+- Casos de uso publicados e demonstração audiovisual.
 
-| Requirement | Status | Evidence / next action |
+## Estado verificado
+
+| Requisito | Estado em 2026-11-07 | Evidência / próxima ação |
 |---|---|---|
-| Hermes-based agent | PASS | Repository is a Plow/Hermes base image and boots Hermes through s6-overlay. |
-| Plow integration | PASS | The image already contains the Plow initialization path and Plow credential handling. |
-| Plow Chat/iMessage path | PASS | The repository is explicitly designed as a hosted Plow agent reachable through Plow Chat. |
-| Open-source license | PASS | `LICENSE` is now MIT. |
-| Public GitHub repository | BLOCKED | The GitHub repository is currently private. Change repository visibility to public before submission. |
-| Agent Index registration | TODO | Register this specific agent and obtain its Agent Index ID. |
-| Agent Index usage reporter/client | PASS (herdado) | O cliente já vem da imagem base `plow-hermes-agent`/`plow-cloud-agents`; este repositório não adiciona uma segunda implementação. Execute `just check-agent-index` com o serviço em execução para confirmar o processo ativo. |
-| Real user workflow | TODO | Implement the product-developer workflow derived from the CBL research; do not submit the base image alone as the finished agent. |
-| Working end-to-end demonstration | TODO | Run the finished agent through Plow Latch + Plow Chat/iMessage and record the required demonstration. |
-| Usage-window participation | TODO | Dogfood with real users and accumulate installs/token usage during the official counting window. |
+| Runtime Hermes | **PASS — código** | O Dockerfile deriva da imagem Plow/Hermes fixada por digest e inicia os serviços Hermes via s6-overlay. Isso comprova a implementação no repositório, não uma execução de produção nesta auditoria. |
+| Integração Plow/Latch | **PASS — código** | `plow-init.py`, configuração MCP Plow, plugin `plow_chat` e skills documentam e implementam o caminho de integração. |
+| Repositório público | **PASS** | A API do GitHub retornou `private: false` para `Rodrooj/product-developer-assistant` em 2026-11-07. |
+| Licença open source | **PASS** | O arquivo `LICENSE` contém a licença MIT; README e arquivo de licença usam a mesma identificação. |
+| Workflow principal de pesquisa | **IMPLEMENTADO NO REPOSITÓRIO** | A skill `web-research` e a primeira dobra do README definem pesquisa web/netnografia → dossiê Markdown auditável. A apresentação externa do Agent Index ainda precisa ser atualizada. |
+| Agent Index: registro deste agente | **NÃO VERIFICADO** | Não foi possível confirmar o Agent Index ID ou a página de registro com acesso ao repositório. Registrar/confirmar o ID no painel externo e documentar somente um identificador não secreto. |
+| Agent Index: reporter de uso | **NÃO VERIFICADO** | A imagem base é identificada no Dockerfile, mas esta auditoria não inspecionou o runtime Plow em produção nem observou uma comunicação autenticada com a API do Agent Index. A existência de um processo ou uma busca por nome não comprova envio e aceitação de eventos. Exigir self-check/dry-run oficial ou evidência equivalente, sem expor credenciais. |
+| Casos de uso publicados no Agent Index | **NÃO VERIFICADO** | O inventário em `docs/USE_CASES.md` é documentação do repositório, não prova de publicação no Agent Index. Confirmar na página pública do agente. |
+| Casos de uso com evidência independente | **PARCIAL** | A issue #10 é um registro público de issue encerrada. Os usos de Pages e briefing de e-mail permanecem relatos operacionais sem artefatos públicos/redigidos vinculados. |
+| Vídeo demo ponta a ponta | **PENDENTE** | Gravar uma demonstração real no Plow Chat/Latch, com resultado observável e link público. Nenhum vídeo foi confirmado nesta auditoria. |
+| Participação/uso na janela da competição | **NÃO VERIFICADO** | Depende de dados e regras no serviço externo; não inferir instalações, usuários ativos ou tokens a partir do código do repositório. |
 
-## Product direction from the CBL research
+## Segurança e integridade
 
-The research identifies the target audience as product-development professionals and adjacent roles. The refined challenge is:
+- Nunca commitar `plow-credentials`, tokens, sessões, arquivos `.env` ou dados privados.
+- Preservar a inicialização fail-closed do Plow enquanto a variante hospedada depender desse contrato.
+- Não tratar uma inspeção de processos como confirmação de reporte ao Agent Index.
+- Não publicar documentos Pages, e-mails ou logs que contenham dados pessoais; produzir artefatos redigidos e autorizados antes de vinculá-los.
+- A implementação deste repositório continua sendo a variante integrada ao Plow. O desacoplamento para execução autônoma com FoxMCP/modelo local é trabalho separado e não deve ser confundido com os requisitos de conformidade acima.
 
-> Use Plow Latch to help professional product developers automate heavy and repetitive work processes, giving them more useful working time.
+## Próximas ações externas
 
-The research collected demand for file/folder organization, app deployment, email organization/summarization, Figma organization, document rewriting/reviewing, simulator/container cleanup, and user-defined automations. It also identifies code assistance, research/netnography, and Figma support as promising directions.
+1. Confirmar o Agent Index ID e a configuração do reporter no ambiente Plow real.
+2. Executar o diagnóstico oficial do reporter e guardar a saída sem segredos.
+3. Atualizar a descrição pública do Agent Index para o workflow principal.
+4. Publicar pelo menos três casos de uso com artefatos públicos verificáveis e um vídeo demo funcional.
+5. Confirmar os dados da janela de uso diretamente no Agent Index.
 
-For the hackathon implementation, the repository should converge on one concrete workflow first. The supplied research explicitly warns that broad integrations such as universal email, Figma API/MCP, and App Store deployment can become too complex for a short hackathon.
+## Base desta verificação
 
-## Security and release checks
-
-- Never commit `plow-credentials`, API keys, session state, or `.env` files.
-- Keep the existing fail-closed Plow initialization behavior intact.
-- O cliente de uso é herdado da imagem base; ainda não afirmar registro deste agente ou uso medido até que o ID do Agent Index seja configurado e a medição seja confirmada.
-- Do not claim the repository is submission-ready while its visibility remains private.
-
-## Source basis
-
-This checklist is based on the supplied `CBL_Hackathon.pdf`, the supplied `Plow Hackathon Kickoff` transcript, and the existing repository implementation. The kickoff states that the Agent Index is intended to contain real examples of agents, that ranking is based on installs and token usage, and that a Python script is required on the agent to report usage. The CBL identifies Plow Latch + Hermes as the intended solution path and the product-development automation challenge.
+A verificação de repositório público e branches/issues foi realizada pela API GitHub em 2026-11-07. O estado do reporter, o registro e a publicação de casos no Agent Index dependem de acesso ao serviço e ao runtime externos e, por isso, permanecem explicitamente não verificados.
